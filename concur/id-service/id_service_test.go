@@ -5,58 +5,68 @@ import (
 	"testing"
 )
 
-const maxAttempts = 1000
+const maxAttempts = 100000
 
-func TestMutex(t *testing.T) {
-	var wg sync.WaitGroup
-	service := NewIdGenMutex()
-	for i := 0; i < maxAttempts; i++ {
-		wg.Add(1)
-		go func() {
-			service.GetNext()
-			wg.Done()
-		}()
-	}
+func TestIdGeneration(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		service IdService
+	}{
+		{
+			name: "Mutex", service: NewIdGenMutex(),
+		},
+		{
+			name: "Atomic", service: NewIdGenAtomic(),
+		},
+		{
+			name: "Channel", service: NewIdGenChan(),
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var wg sync.WaitGroup
+			for i := 0; i < maxAttempts; i++ {
+				wg.Add(1)
+				go func() {
+					test.service.GetNext()
+					wg.Done()
+				}()
+			}
 
-	wg.Wait()
-	finalResult := service.GetNext()
-	if finalResult != maxAttempts {
-		t.Fatalf("Service returned %d, wanted %d", finalResult, maxAttempts+1)
-	}
-}
-
-func TestAtomic(t *testing.T) {
-	var wg sync.WaitGroup
-	service := NewIdGenAtomic()
-	for i := 0; i < maxAttempts; i++ {
-		wg.Add(1)
-		go func() {
-			service.GetNext()
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
-	finalResult := service.GetNext()
-	if finalResult != maxAttempts {
-		t.Fatalf("Service returned %d, wanted %d", finalResult, maxAttempts+1)
+			wg.Wait()
+			finalResult := test.service.GetNext()
+			if finalResult != maxAttempts {
+				t.Fatalf("Service returned %d, wanted %d", finalResult, maxAttempts)
+			}
+		})
 	}
 }
 
-func TestChannel(t *testing.T) {
-	var wg sync.WaitGroup
-	service := NewIdGenChan()
-	for i := 0; i < maxAttempts; i++ {
-		wg.Add(1)
-		go func() {
-			service.GetNext()
-			wg.Done()
-		}()
-	}
+func BenchmarkIdGeneration(b *testing.B) {
+	for _, bench := range []struct {
+		name    string
+		service IdService
+	}{
+		{
+			name: "Mutex", service: NewIdGenMutex(),
+		},
+		{
+			name: "Atomic", service: NewIdGenAtomic(),
+		},
+		{
+			name: "Channel", service: NewIdGenChan(),
+		},
+	} {
+		b.Run(bench.name, func(b *testing.B) {
+			var wg sync.WaitGroup
+			for i := 0; i < b.N; i++ {
+				wg.Add(1)
+				go func() {
+					bench.service.GetNext()
+					wg.Done()
+				}()
+			}
 
-	wg.Wait()
-	finalResult := service.GetNext()
-	if finalResult != maxAttempts {
-		t.Fatalf("Service returned %d, wanted %d", finalResult, maxAttempts+1)
+			wg.Wait()
+		})
 	}
 }
