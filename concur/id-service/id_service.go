@@ -42,16 +42,14 @@ func (g *IdGenAtomic) GetNext() uint64 {
 }
 
 type IdGenChan struct {
-    in chan struct{}
     out chan uint64
 }
 
 func NewIdGenChan() *IdGenChan {
-    idGen := &IdGenChan{in: make(chan struct{}), out: make(chan uint64)}
+    idGen := &IdGenChan{out: make(chan uint64, 1000)}
     go func() {
         var v uint64 = 0
         for {
-            <- idGen.in
             old := v
             v += 1
             idGen.out <- old
@@ -61,6 +59,5 @@ func NewIdGenChan() *IdGenChan {
 }
 
 func (g *IdGenChan) GetNext() uint64 {
-    g.in <- struct{}{}
     return <- g.out
 }
