@@ -9,6 +9,7 @@ package rocksdb
 #include "rockswrapper.h"
 */
 import "C"
+import "errors"
 
 type rocksdb struct {
 	db           *C.rocksdb_t
@@ -27,18 +28,25 @@ func (rdb *rocksdb) Close() {
 	C.closeDB(rdb.db, rdb.options, rdb.writeOptions, rdb.readOptions)
 }
 
-func (rdb *rocksdb) Put(key, value string) {
+func (rdb *rocksdb) Put(key, value string) error {
 	c_key := C.CString(key)
 	c_val := C.CString(value)
 	var err *C.char
 	C.rocksdb_put(rdb.db, rdb.writeOptions, c_key, C.strlen(c_key), c_val, C.strlen(c_val),
 		&err)
+	if err != nil {
+		return errors.New(C.GoString(err))
+	}
+	return nil
 }
 
-func (rdb *rocksdb) Get(key string) string {
+func (rdb *rocksdb) Get(key string) (string, error) {
 	c_key := C.CString(key)
 	var err *C.char
 	var len C.size_t
 	returned_value := C.rocksdb_get(rdb.db, rdb.readOptions, c_key, C.strlen(c_key), &len, &err)
-	return C.GoString(returned_value)
+	if err != nil {
+		return "", errors.New(C.GoString(err))
+	}
+	return C.GoString(returned_value), nil
 }
