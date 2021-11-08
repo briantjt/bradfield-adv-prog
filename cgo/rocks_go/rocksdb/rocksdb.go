@@ -2,8 +2,8 @@ package rocksdb
 
 /*
 #cgo CFLAGS: -I/usr/include
-#cgo LDFLAGS: -L/usr/lib ${SRCDIR}/librocksdb.a -lstdc++ -lpthread -lpthread -lsnappy  -lz -lbz2 -lzstd -llz4 -ldl -luring -lm
-// #cgo LDFLAGS: -L/usr/lib -lrocksdb
+// #cgo LDFLAGS: -L/usr/lib ${SRCDIR}/librocksdb.a -lstdc++ -lpthread -lpthread -lsnappy  -lz -lbz2 -lzstd -llz4 -ldl -luring -lm
+#cgo LDFLAGS: -L/usr/lib -lrocksdb
 #include <stdlib.h>
 #include <string.h>
 #include "rocksdb/c.h"
@@ -23,6 +23,11 @@ type rocksdb struct {
 	readOptions  *C.rocksdb_readoptions_t
 }
 
+func create_go_error(err *C.char) error {
+	go_err := C.GoString(err)
+	C.free(unsafe.Pointer(err))
+	return errors.New(go_err)
+}
 func NewRocksDB(path string) *rocksdb {
 	var rocksDB rocksdb
 	rocksDB.path = C.CString(path)
@@ -49,15 +54,30 @@ func (rdb *rocksdb) Put(key, value string) error {
 	return nil
 }
 
-func (rdb *rocksdb) Get(key string) (string, error) {
+func (rdb *rocksdb) Get(key string) (*string, error) {
 	c_key := C.CString(key)
 	defer C.free(unsafe.Pointer(c_key))
 	var err *C.char
 	var len C.size_t
 	returned_value := C.rocksdb_get(rdb.db, rdb.readOptions, c_key, C.strlen(c_key), &len, &err)
-	defer C.free(unsafe.Pointer(returned_value))
 	if err != nil {
-		return "", errors.New(C.GoString(err))
+		return nil, create_go_error(err)
 	}
-	return C.GoString(returned_value), nil
+	if returned_value == nil {
+		return nil, nil
+	}
+	val := C.GoString(returned_value)
+	C.free(unsafe.Pointer(returned_value))
+	return &val, nil
+}
+
+func (rdb *rocksdb) Delete(val string) error {
+	c_val := C.CString(val)
+	defer C.free(unsafe.Pointer(c_val))
+	var err *C.char
+	C.rocksdb_delete(rdb.db, rdb.writeOptions, c_val, C.strlen(c_val), &err)
+	if err != nil {
+		return create_go_error(err)
+	}
+	return nil
 }
